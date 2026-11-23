@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand: #6d28ff;
+  --color-brand-soft: #8b5cf6;
+  --color-brand-deep: #2b0a5e;
+  --color-brand-night: #1b0740;
+  --color-accent: #ffcc00;
+  --color-answer-red: #e21b3c;
+  --color-answer-blue: #1368ce;
+  --color-answer-yellow: #d89e00;
+  --color-answer-green: #26890c;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-brand-night font-sans text-white antialiased;
+  }
+
+  ::selection {
+    @apply bg-accent text-brand-night;
+  }
+
+  input,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@utility bg-arena {
+  background:
+    radial-gradient(1200px 800px at 15% -10%, rgba(129, 74, 255, 0.55), transparent 60%),
+    radial-gradient(1000px 700px at 95% 10%, rgba(255, 64, 129, 0.32), transparent 55%),
+    radial-gradient(900px 900px at 50% 115%, rgba(0, 194, 255, 0.22), transparent 60%),
+    linear-gradient(160deg, #2b0a5e 0%, #1b0740 60%, #12032e 100%);
+}
+
+@utility glass {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+@utility card-glow {
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) rotate(6deg);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2.4s ease-in-out infinite;
+}
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-slow,
+  .animate-pulse-soft,
+  .animate-shimmer {
+    animation: none;
+  }
+}

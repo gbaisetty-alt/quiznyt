@@ -1,0 +1,479 @@
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  Clock,
+  ListChecks,
+  Play,
+  Plus,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
+import Brand from '../components/Brand.jsx';
+import Button from '../components/Button.jsx';
+import Shape from '../components/Shape.jsx';
+import { SERVER_URL, request } from '../lib/socket.js';
+import { saveHostToken } from '../lib/session.js';
+import { ANSWERS } from '../lib/answers.js';
+
+const LETTERS = ['A', 'B', 'C', 'D'];
+const TIME_OPTIONS = [10, 15, 20, 30];
+
+const uid = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `q-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+function blankQuestion(overrides = {}) {
+  return {
+    id: uid(),
+    text: '',
+    options: ['', '', '', ''],
+    correctIndex: null,
+    timeLimit: 20,
+    ...overrides,
+  };
+}
+
+function formatDuration(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (!minutes) return `${seconds}s`;
+  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function QuestionEditor({ question, index, count, onChange, onOptionChange, onRemove }) {
+  const [customSeconds, setCustomSeconds] = useState(String(question.timeLimit));
+
+  useEffect(() => {
+    setCustomSeconds(String(question.timeLimit));
+  }, [question.timeLimit]);
+
+  const handleCustomChange = (raw) => {
+    setCustomSeconds(raw);
+    const seconds = Number(raw);
+    if (!raw || !Number.isFinite(seconds) || seconds < 10 || seconds > 60) return;
+    onChange({ timeLimit: Math.round(seconds) });
+  };
+
+  const commitCustom = () => {
+    const seconds = Number(customSeconds);
+    const clamped = Number.isFinite(seconds) ? Math.min(60, Math.max(10, Math.round(seconds))) : 20;
+    setCustomSeconds(String(clamped));
+    onChange({ timeLimit: clamped });
+  };
+
+  return (
+    <motion.section
+      layout
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="glass rounded-3xl p-4 sm:p-5"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold">
+          <span className="grid h-5 w-5 place-items-center rounded-full bg-accent text-[10px] font-black text-brand-night">
+            {index + 1}
+          </span>
+          Question
+        </span>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-full bg-white/5 p-1 ring-1 ring-inset ring-white/10">
+            <Clock className="ml-1.5 h-3.5 w-3.5 text-white/40" aria-hidden="true" />
+            {TIME_OPTIONS.map((seconds) => (
+              <button
+                key={seconds}
+                type="button"
+                onClick={() => onChange({ timeLimit: seconds })}
+                aria-pressed={question.timeLimit === seconds}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
+                  question.timeLimit === seconds
+                    ? 'bg-accent text-brand-night'
+                    : 'text-white/55 hover:text-white'
+                }`}
+              >
+                {seconds}s
+              </button>
+            ))}
+          </div>
+          <label
+            className="flex items-center gap-1 rounded-full bg-white/5 px-2 py-1 text-[11px] font-bold text-white/50 ring-1 ring-inset ring-white/10 focus-within:ring-accent/60"
+            title="Any time from 10 to 60 seconds"
+          >
+            <input
+              type="number"
+              min={10}
+              max={60}
+              step={1}
+              value={customSeconds}
+              onChange={(e) => handleCustomChange(e.target.value)}
+              onBlur={commitCustom}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitCustom();
+                  e.currentTarget.blur();
+                }
+              }}
+              className="w-9 bg-transparent text-center tabular-nums text-white focus:outline-none"
+              aria-label="Custom time limit in seconds, 10 to 60"
+            />
+            <span aria-hidden="true">s</span>
+          </label>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={count === 1}
+            aria-label={`Remove question ${index + 1}`}
+            className="grid h-8 w-8 place-items-center rounded-xl text-white/40 transition hover:bg-answer-red/20 hover:text-[#ff9db0] disabled:cursor-not-allowed disabled:opacity-20"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <label className="sr-only" htmlFor={`q-${question.id}`}>
+        Question {index + 1}
+      </label>
+      <textarea
+        id={`q-${question.id}`}
+        value={question.text}
+        onChange={(e) => onChange({ text: e.target.value.slice(0, 200) })}
+        rows={2}
+        maxLength={200}
+        placeholder="What do you want to ask?"
+        className="mt-3 w-full resize-none rounded-2xl bg-white/5 p-3.5 text-base font-semibold leading-snug ring-1 ring-inset ring-white/10 transition placeholder:font-normal placeholder:text-white/25 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent/60"
+      />
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {question.options.map((option, i) => {
+          const meta = ANSWERS[i];
+          const selected = question.correctIndex === i;
+          return (
+            <div
+              key={i}
+              className={`flex items-center gap-2 rounded-2xl p-2 pl-2.5 transition ${
+                selected ? 'bg-white/10' : 'bg-white/5 hover:bg-white/[0.08]'
+              }`}
+              style={{
+                boxShadow: `inset 0 0 0 ${selected ? 2 : 1}px ${
+                  selected ? meta.hex : 'rgba(255,255,255,0.1)'
+                }`,
+              }}
+            >
+              <span
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white"
+                style={{ backgroundColor: meta.hex }}
+                aria-hidden="true"
+              >
+                <Shape type={meta.shape} className="h-4 w-4 text-white/90" />
+              </span>
+              <input
+                value={option}
+                onChange={(e) => onOptionChange(i, e.target.value.slice(0, 80))}
+                maxLength={80}
+                placeholder={`Answer ${LETTERS[i]}`}
+                aria-label={`Question ${index + 1} answer ${LETTERS[i]}`}
+                className="min-w-0 flex-1 bg-transparent py-2 text-sm font-semibold placeholder:font-normal placeholder:text-white/25 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => onChange({ correctIndex: i })}
+                aria-pressed={selected}
+                aria-label={`Mark answer ${LETTERS[i]} as correct`}
+                title="Mark as correct"
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ring-1 ring-inset transition ${
+                  selected
+                    ? 'bg-white text-brand-night ring-white'
+                    : 'text-white/30 ring-white/20 hover:text-white hover:ring-white/45'
+                }`}
+              >
+                <Check className="h-4 w-4" strokeWidth={selected ? 3 : 2} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-2.5 flex items-center gap-1.5 pl-1 text-[11px] text-white/35">
+        <Check className="h-3 w-3" />
+        {question.correctIndex === null
+          ? 'Tap the check on the correct answer.'
+          : `Answer ${LETTERS[question.correctIndex]} is marked correct.`}
+      </p>
+    </motion.section>
+  );
+}
+
+export default function CreateQuiz() {
+  const navigate = useNavigate();
+  const [title, setTitle] = useState('');
+  const [questions, setQuestions] = useState(() => [blankQuestion()]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sampleBusy, setSampleBusy] = useState(false);
+
+  const totalSeconds = questions.reduce((sum, q) => sum + Number(q.timeLimit || 0), 0);
+
+  const updateQuestion = (id, patch) =>
+    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+
+  const updateOption = (id, optionIndex, value) =>
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id === id
+          ? { ...q, options: q.options.map((opt, i) => (i === optionIndex ? value : opt)) }
+          : q,
+      ),
+    );
+
+  const addQuestion = () => setQuestions((prev) => [...prev, blankQuestion()]);
+
+  const removeQuestion = (id) =>
+    setQuestions((prev) => (prev.length === 1 ? prev : prev.filter((q) => q.id !== id)));
+
+  async function loadSample() {
+    setSampleBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`${SERVER_URL}/api/sample-quiz`);
+      if (!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      setTitle(data.title);
+      setQuestions(
+        data.questions.map((q) =>
+          blankQuestion({
+            text: q.text,
+            options: [...q.options],
+            correctIndex: q.correctIndex,
+            timeLimit: q.timeLimit,
+          }),
+        ),
+      );
+    } catch {
+      setError('Could not load the sample quiz. Make sure the real-time server is running.');
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  function validate() {
+    if (!title.trim()) return 'Give your quiz a title first.';
+    for (let i = 0; i < questions.length; i += 1) {
+      const q = questions[i];
+      if (!q.text.trim()) return `Question ${i + 1} needs a question.`;
+      const blank = q.options.findIndex((opt) => !opt.trim());
+      if (blank !== -1) return `Question ${i + 1} is missing answer ${LETTERS[blank]}.`;
+      if (q.correctIndex === null) return `Mark the correct answer for question ${i + 1}.`;
+    }
+    return null;
+  }
+
+  async function handleCreate() {
+    const problem = validate();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError('');
+    setBusy(true);
+    const quiz = {
+      title: title.trim(),
+      questions: questions.map((q) => ({
+        text: q.text.trim(),
+        options: q.options.map((opt) => opt.trim()),
+        correctIndex: q.correctIndex,
+        timeLimit: q.timeLimit,
+      })),
+    };
+    const res = await request('host:create', { quiz });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error || 'Could not create the game.');
+      return;
+    }
+    saveHostToken(res.pin, res.hostToken);
+    navigate(`/host/${res.pin}`);
+  }
+
+  return (
+    <div className="min-h-dvh bg-arena pb-28 lg:pb-16">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-brand-night/70 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-8">
+          <Brand compact />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="glass"
+              size="sm"
+              onClick={loadSample}
+              loading={sampleBusy}
+              className="rounded-full"
+            >
+              {!sampleBusy && <Sparkles className="h-4 w-4 text-accent" />}
+              Sample quiz
+            </Button>
+            <Link
+              to="/"
+              className="hidden items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-white/60 transition hover:bg-white/10 hover:text-white sm:flex"
+            >
+              <ArrowLeft className="h-4 w-4" /> Home
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-6xl px-4 pb-8 pt-6 sm:px-8 sm:pt-8">
+        <div className="max-w-2xl">
+          <h1 className="font-display text-3xl font-black tracking-tight sm:text-4xl">
+            Build your quiz
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-white/60 sm:text-base">
+            Add four answers per question, mark the correct one, and pick a countdown. Grab
+            the sample quiz if you just want to play right now.
+          </p>
+        </div>
+
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 20 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              role="alert"
+              className="flex items-start gap-2 overflow-hidden rounded-2xl bg-answer-red/15 px-4 py-3 text-sm text-[#ffb3c1] ring-1 ring-inset ring-answer-red/30"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex-1">{error}</span>
+              <button
+                type="button"
+                onClick={() => setError('')}
+                aria-label="Dismiss error"
+                className="rounded-md p-0.5 text-white/40 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-4">
+            <section className="glass rounded-3xl p-5 transition focus-within:ring-1 focus-within:ring-accent/40">
+              <label
+                htmlFor="quiz-title"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/45"
+              >
+                Quiz title
+              </label>
+              <input
+                id="quiz-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+                maxLength={80}
+                placeholder="Friday Night Brain Battle"
+                className="mt-1.5 w-full bg-transparent font-display text-2xl font-extrabold tracking-tight placeholder:text-white/20 focus:outline-none sm:text-3xl"
+              />
+              <div className="mt-1 flex items-center justify-between text-[11px] text-white/30">
+                <span>This is what players see when they join.</span>
+                <span>{title.length}/80</span>
+              </div>
+            </section>
+
+            <div className="space-y-3">
+              {questions.map((question, index) => (
+                <QuestionEditor
+                  key={question.id}
+                  question={question}
+                  index={index}
+                  count={questions.length}
+                  onChange={(patch) => updateQuestion(question.id, patch)}
+                  onOptionChange={(optIndex, value) =>
+                    updateOption(question.id, optIndex, value)
+                  }
+                  onRemove={() => removeQuestion(question.id)}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addQuestion}
+              className="flex w-full items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-white/15 py-4 text-sm font-bold text-white/60 transition hover:border-accent/50 hover:bg-white/5 hover:text-white"
+            >
+              <Plus className="h-4 w-4" /> Add another question
+            </button>
+          </div>
+
+          <aside className="hidden lg:block">
+            <div className="sticky top-24 space-y-4">
+              <div className="glass rounded-3xl p-5">
+                <h2 className="font-display text-lg font-extrabold">Quiz summary</h2>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-white/50">Title</dt>
+                    <dd className="max-w-[190px] truncate text-right font-semibold">
+                      {title.trim() || 'Untitled quiz'}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-white/50">Questions</dt>
+                    <dd className="font-semibold">{questions.length}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-white/50">Time on the clock</dt>
+                    <dd className="font-semibold">{formatDuration(totalSeconds)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-white/50">Max points</dt>
+                    <dd className="font-semibold text-accent">
+                      {(questions.length * 1000).toLocaleString()}
+                    </dd>
+                  </div>
+                </dl>
+                <Button size="lg" onClick={handleCreate} loading={busy} className="mt-5 w-full">
+                  {!busy && <Play className="h-5 w-5" fill="currentColor" />}
+                  {busy ? 'Creating game…' : 'Create & host'}
+                </Button>
+                <p className="mt-3 text-center text-[11px] text-white/35">
+                  You will get a 6-digit PIN to share with players.
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-white/[0.04] p-5 text-sm leading-relaxed text-white/50 ring-1 ring-inset ring-white/10">
+                <p className="flex items-center gap-2 font-semibold text-white/75">
+                  <ListChecks className="h-4 w-4 text-accent" /> Quick tips
+                </p>
+                <ul className="mt-2.5 space-y-2">
+                  <li>Keep questions short so they read well on a projector.</li>
+                  <li>Speed counts: faster correct answers score more.</li>
+                  <li>Players only see the four colored shapes on their phones.</li>
+                </ul>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </main>
+
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-brand-night/85 px-4 pt-3 backdrop-blur-xl lg:hidden"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+      >
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <div className="min-w-0 flex-1 text-xs text-white/50">
+            <p className="truncate font-semibold text-white/80">{title.trim() || 'Untitled quiz'}</p>
+            {questions.length} questions · {formatDuration(totalSeconds)}
+          </div>
+          <Button onClick={handleCreate} loading={busy} className="shrink-0">
+            {!busy && <Play className="h-4 w-4" fill="currentColor" />}
+            {busy ? 'Creating…' : 'Create & host'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

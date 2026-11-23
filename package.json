@@ -1,0 +1,31 @@
+{
+  "name": "quizblitz",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Real-time multiplayer live quiz game (Kahoot-inspired)",
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "vite client",
+    "build": "vite build client",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.8",
+    "@vitejs/plugin-react": "^4.4.1",
+    "concurrently": "^9.1.2",
+    "tailwindcss": "^4.1.8",
+    "vite": "^6.3.5"
+  }
+}

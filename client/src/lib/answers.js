@@ -1,0 +1,38 @@
+export const ANSWERS = [
+  {
+    key: 0,
+    name: 'Red',
+    shape: 'triangle',
+    hex: '#e21b3c',
+    bg: 'bg-answer-red',
+    hover: 'hover:bg-[#f0244a]',
+    text: 'text-answer-red',
+  },
+  {
+    key: 1,
+    name: 'Blue',
+    shape: 'diamond',
+    hex: '#1368ce',
+    bg: 'bg-answer-blue',
+    hover: 'hover:bg-[#1a76e0]',
+    text: 'text-answer-blue',
+  },
+  {
+    key: 2,
+    name: 'Yellow',
+    shape: 'circle',
+    hex: '#d89e00',
+    bg: 'bg-answer-yellow',
+    hover: 'hover:bg-[#ebae04]',
+    text: 'text-answer-yellow',
+  },
+  {
+    key: 3,
+    name: 'Green',
+    shape: 'square',
+    hex: '#26890c',
+    bg: 'bg-answer-green',
+    hover: 'hover:bg-[#2f9f11]',
+    text: 'text-answer-green',
+  },
+];
