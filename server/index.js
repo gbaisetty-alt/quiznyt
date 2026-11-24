@@ -14,13 +14,141 @@ const PORT = Number(process.env.PORT) || 3001;
 const HOST_GRACE_MS = 25_000;
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '500kb' }));
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
   next();
 });
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/sample-quiz', (req, res) => res.json(SAMPLE_QUIZ));
+
+const AI_RATE_LIMIT = 5;
+const AI_RATE_WINDOW_MS = 10 * 60_000;
+const aiRequests = new Map();
+
+function aiRateLimited(ip) {
+  const now = Date.now();
+  const recent = (aiRequests.get(ip) ?? []).filter((t) => now - t < AI_RATE_WINDOW_MS);
+  if (recent.length >= AI_RATE_LIMIT) {
+    aiRequests.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  aiRequests.set(ip, recent);
+  if (aiRequests.size > 500) {
+    for (const [key, stamps] of aiRequests) {
+      if (!stamps.some((t) => now - t < AI_RATE_WINDOW_MS)) aiRequests.delete(key);
+    }
+  }
+  return false;
+}
+
+const AI_PROMPT = `You write multiple-choice quiz questions for a live classroom game.
+Return ONLY a JSON object shaped like:
+{"title":"Short quiz title","questions":[{"text":"question","options":["option A","option B","option C","option D"],"correctIndex":0,"timeLimit":20}]}
+Rules:
+- Produce exactly the requested number of questions.
+- Each question has exactly 4 plausible options and exactly one correct answer.
+- correctIndex is the 0-based index of the correct option.
+- timeLimit is a whole number between 10 and 30 seconds.
+- Question text is under 200 characters. Options are under 80 characters and contain no "A)" or "1." prefixes.
+- Questions must be factual, unambiguous, and age-appropriate.`;
+
+app.post('/api/ai/quiz', async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) {
+    res.status(503).json({
+      ok: false,
+      error: 'AI generation is not configured yet. Add an OPENAI_API_KEY to the server.',
+    });
+    return;
+  }
+  const topic = cleanText(req.body?.topic, 120);
+  if (!topic) {
+    res.status(400).json({ ok: false, error: 'Add a topic for the AI to build questions around.' });
+    return;
+  }
+  if (aiRateLimited(req.ip)) {
+    res.status(429).json({
+      ok: false,
+      error: 'Too many AI requests. Wait a few minutes and try again.',
+    });
+    return;
+  }
+  const count = Math.min(15, Math.max(3, Math.round(Number(req.body?.count)) || 8));
+  const difficulty = ['easy', 'medium', 'hard'].includes(req.body?.difficulty)
+    ? req.body.difficulty
+    : 'medium';
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+  let upstream;
+  try {
+    upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: AI_PROMPT },
+          {
+            role: 'user',
+            content: `Topic: ${topic}\nQuestions: ${count}\nDifficulty: ${difficulty}`,
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+  } catch (err) {
+    console.error('[ai] request failed:', err?.message);
+    res.status(502).json({ ok: false, error: 'Could not reach the AI service. Try again.' });
+    return;
+  }
+
+  const body = await upstream.json().catch(() => null);
+  if (!upstream.ok) {
+    console.error('[ai]', upstream.status, body?.error?.message);
+    let error = 'The AI service could not generate a quiz. Try again.';
+    if (upstream.status === 401) {
+      error = 'The OpenAI API key was rejected. Check OPENAI_API_KEY.';
+    } else if (upstream.status === 429) {
+      error = 'OpenAI is rate limiting requests right now. Try again shortly.';
+    } else if (body?.error?.code === 'model_not_found') {
+      error = `The model "${model}" is unavailable for this key. Set OPENAI_MODEL to a model you can use.`;
+    }
+    res.status(502).json({ ok: false, error });
+    return;
+  }
+
+  let draft = null;
+  try {
+    draft = JSON.parse(body?.choices?.[0]?.message?.content ?? '');
+  } catch {
+    draft = null;
+  }
+  if (!draft) {
+    res.status(502).json({ ok: false, error: 'The AI returned a malformed quiz. Try again.' });
+    return;
+  }
+  try {
+    res.json({ ok: true, quiz: normalizeQuiz(draft) });
+  } catch (err) {
+    res.status(502).json({
+      ok: false,
+      error: `The AI returned an invalid quiz: ${err.message} Try again.`,
+    });
+  }
+});
 
 if (existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR));

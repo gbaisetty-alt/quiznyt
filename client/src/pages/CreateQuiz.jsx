@@ -11,6 +11,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Wand2,
   X,
 } from 'lucide-react';
 import Brand from '../components/Brand.jsx';
@@ -217,6 +218,11 @@ export default function CreateQuiz() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sampleBusy, setSampleBusy] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiCount, setAiCount] = useState(8);
+  const [aiDifficulty, setAiDifficulty] = useState('medium');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   const totalSeconds = questions.reduce((sum, q) => sum + Number(q.timeLimit || 0), 0);
 
@@ -259,6 +265,48 @@ export default function CreateQuiz() {
       setError('Could not load the sample quiz. Make sure the real-time server is running.');
     } finally {
       setSampleBusy(false);
+    }
+  }
+
+  async function generateWithAI() {
+    if (!aiTopic.trim()) {
+      setAiError('Describe a topic first, like "The solar system for grade 7".');
+      return;
+    }
+    setAiError('');
+    setAiBusy(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/ai/quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopic.trim(),
+          count: aiCount,
+          difficulty: aiDifficulty,
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok || !data.quiz) {
+        setAiError(data?.error || 'Could not generate a quiz. Try again.');
+        return;
+      }
+      setTitle(data.quiz.title);
+      setQuestions(
+        data.quiz.questions.map((q) =>
+          blankQuestion({
+            text: q.text,
+            options: [...q.options],
+            correctIndex: q.correctIndex,
+            timeLimit: q.timeLimit,
+          }),
+        ),
+      );
+      setError('');
+    } catch {
+      setAiError('Could not reach the AI service. Check your connection and try again.');
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -333,8 +381,8 @@ export default function CreateQuiz() {
             Build your quiz
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-white/60 sm:text-base">
-            Add four answers per question, mark the correct one, and pick a countdown. Grab
-            the sample quiz if you just want to play right now.
+            Add four answers per question, mark the correct one, and pick a countdown. Let AI
+            draft it from a topic, or grab the sample quiz if you just want to play right now.
           </p>
         </div>
 
@@ -382,6 +430,85 @@ export default function CreateQuiz() {
                 <span>This is what players see when they join.</span>
                 <span>{title.length}/80</span>
               </div>
+            </section>
+
+            <section className="rounded-3xl bg-gradient-to-br from-accent/15 via-white/[0.06] to-white/[0.03] p-4 ring-1 ring-inset ring-accent/25 sm:p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-xl bg-accent/20 text-accent">
+                  <Wand2 className="h-4 w-4" />
+                </span>
+                <h2 className="text-sm font-bold">Generate with AI</h2>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/50">
+                  ChatGPT
+                </span>
+                <span className="ml-auto hidden text-[11px] text-white/35 sm:block">
+                  Replaces the questions below
+                </span>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-white/50">
+                Give ChatGPT a topic and it drafts the title, questions, answers, and timers
+                for you to edit.
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value.slice(0, 120))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (!aiBusy) generateWithAI();
+                    }
+                  }}
+                  maxLength={120}
+                  placeholder="e.g. Harry Potter trivia, space, world capitals"
+                  aria-label="Topic for AI quiz generation"
+                  className="min-w-0 flex-1 rounded-xl bg-white/10 px-3.5 py-2.5 text-sm ring-1 ring-inset ring-white/15 transition placeholder:text-white/30 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-accent/60"
+                />
+                <div className="flex gap-2">
+                  <label className="flex items-center gap-1 rounded-xl bg-white/10 px-2.5 py-2 text-[11px] font-bold text-white/60 ring-1 ring-inset ring-white/15">
+                    <span className="sr-only">Number of questions</span>
+                    <select
+                      value={aiCount}
+                      onChange={(e) => setAiCount(Number(e.target.value))}
+                      className="bg-transparent font-bold text-white focus:outline-none"
+                    >
+                      {[5, 8, 10, 12, 15].map((n) => (
+                        <option key={n} value={n} className="bg-brand-night">
+                          {n} Qs
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1 rounded-xl bg-white/10 px-2.5 py-2 text-[11px] font-bold text-white/60 ring-1 ring-inset ring-white/15">
+                    <span className="sr-only">Difficulty</span>
+                    <select
+                      value={aiDifficulty}
+                      onChange={(e) => setAiDifficulty(e.target.value)}
+                      className="bg-transparent font-bold capitalize text-white focus:outline-none"
+                    >
+                      {['easy', 'medium', 'hard'].map((level) => (
+                        <option key={level} value={level} className="bg-brand-night">
+                          {level}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    size="sm"
+                    onClick={generateWithAI}
+                    loading={aiBusy}
+                    className="shrink-0"
+                  >
+                    {!aiBusy && <Sparkles className="h-4 w-4" />}
+                    {aiBusy ? 'Drafting…' : 'Generate'}
+                  </Button>
+                </div>
+              </div>
+              {aiError && (
+                <p role="alert" className="mt-2 text-xs font-medium text-[#ffb3c1]">
+                  {aiError}
+                </p>
+              )}
             </section>
 
             <div className="space-y-3">

@@ -6,6 +6,7 @@ A real-time, multiplayer live quiz game inspired by Kahoot. The host runs the ga
 
 - Landing page with **Host a Quiz** and **Join a Game** flows
 - Quiz builder: title, unlimited questions (up to 50), 4 answers each, correct answer, per-question timer (presets or any custom value from 10–60s)
+- Optional **AI quiz generation**: give ChatGPT a topic, question count, and difficulty, and it drafts the title, questions, options, answer key, and timers into the editor (bring your own OpenAI API key)
 - Pick-your-avatar join screen with a Wizarding-world set (wizard, witch, owl, serpent, lion, unicorn, dragon…) and animal favorites — avatars appear in the lobby, scoreboards, and podium
 - Built-in sample quiz so you can play immediately
 - Host lobby with a random 6-digit PIN, live-updating player list, copyable PIN and join link
@@ -85,6 +86,18 @@ https://render.com/deploy?repo=https://github.com/gbaisetty-alt/quiznyt
 
 Alternative hosts that support Node + WebSockets: Railway, Fly.io, Heroku. Any of them just needs `npm run build` and `npm start`.
 
+## AI quiz generation (optional)
+
+The **Generate with AI** panel in the quiz builder calls OpenAI from the server, so your key never reaches the browser.
+
+1. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys). A ChatGPT Plus subscription does **not** include API access — the key needs its own billing.
+2. Add `OPENAI_API_KEY` as an environment variable on your host (Render: **Environment → Add Environment Variable**, then redeploy). `OPENAI_MODEL` defaults to `gpt-4o-mini`; set it to another model if your key cannot use that one.
+3. Locally, either export it in your shell (`OPENAI_API_KEY=sk-... npm start`) or put it in a `.env` file if you use one.
+
+Without a key the panel still renders but returns “AI generation is not configured yet.” The endpoint (`POST /api/ai/quiz`) is rate-limited to 5 requests per IP per 10 minutes, caps questions at 15, and validates the AI's JSON against the same rules as manually built quizzes before returning it.
+
+Each draft costs a fraction of a cent with `gpt-4o-mini` (roughly $0.001–0.003 for 8 questions).
+
 ## How to play
 
 1. **Host a Quiz** → build questions or press **Sample quiz** to load the 8-question starter pack.
@@ -139,6 +152,8 @@ The server validates quiz payloads (1–50 questions, exactly 4 non-empty answer
 | --- | --- | --- |
 | `PORT` | `3001` | Socket.IO/Express server port |
 | `VITE_SERVER_URL` | dev: `http://<current-host>:3001`, prod: same origin | Override the client's server URL if the API is hosted elsewhere |
+| `OPENAI_API_KEY` | — | Server-side key for **Generate with AI**; leave unset to disable the feature |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model used for quiz drafts |
 
 ## Notes
 
