@@ -80,7 +80,7 @@ Free instances sleep after ~15 minutes of inactivity and take 30–60 seconds to
 One-click shortcut after the repo exists:
 
 ```
-https://render.com/deploy?repo=https://github.com/<your-username>/quizblitz
+https://render.com/deploy?repo=https://github.com/gbaisetty-alt/quiznyt
 ```
 
 Alternative hosts that support Node + WebSockets: Railway, Fly.io, Heroku. Any of them just needs `npm run build` and `npm start`.
