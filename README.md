@@ -6,7 +6,7 @@ A real-time, multiplayer live quiz game inspired by Kahoot. The host runs the ga
 
 - Landing page with **Host a Quiz** and **Join a Game** flows
 - Quiz builder: title, unlimited questions (up to 50), 4 answers each, correct answer, per-question timer (presets or any custom value from 10–60s)
-- **ChatGPT quiz generation**: copy a ready-made prompt into [chatgpt.com](https://chatgpt.com), paste its JSON reply back, and the title, questions, options, answer key, and timers load into the editor. Works with no API key or account in the app; adding an OpenAI key enables one-click generation instead
+- **ChatGPT quiz generation**: copy a ready-made prompt into [chatgpt.com](https://chatgpt.com), paste its JSON reply back, and the questions, options, answer key, and timers load into the editor. Choose **Add** to mix AI questions with ones you wrote yourself (the prompt avoids duplicates) or **Replace** to swap them in. Works with no API key or account in the app; adding an OpenAI key enables one-click generation instead
 - Pick-your-avatar join screen with a Wizarding-world set (wizard, witch, owl, serpent, lion, unicorn, dragon…) and animal favorites — avatars appear in the lobby, scoreboards, and podium
 - Built-in sample quiz so you can play immediately
 - Host lobby with a random 6-digit PIN, live-updating player list, copyable PIN and join link
@@ -92,11 +92,12 @@ The **Generate with ChatGPT** panel in the quiz builder works in two modes.
 
 ### No key needed: copy, ask, paste
 
-1. Type a topic, pick the question count and difficulty, and press **Copy prompt**.
-2. Press **Open ChatGPT**, paste the prompt, and send it.
-3. Copy ChatGPT's reply and paste it into **Paste ChatGPT's reply** in QuizBlitz, then press **Import quiz**.
+1. Pick **Add** or **Replace** in the panel header. Add keeps the questions you already wrote and appends the AI ones (the prompt asks ChatGPT not to repeat them); Replace swaps everything. Add is the default.
+2. Type a topic, pick the question count and difficulty, and press **Copy prompt**.
+3. Press **Open ChatGPT**, paste the prompt, and send it.
+4. Copy ChatGPT's reply and paste it into **Paste ChatGPT's reply** in QuizBlitz, then press **Import quiz**.
 
-The importer accepts a bare JSON object, a JSON array of questions, a fenced code block, or JSON wrapped in ChatGPT's commentary. It also understands `correctIndex`, `correctAnswer` as "A"–"D", or the correct answer's exact text. Everything is validated before it replaces the editor's questions, and the result is fully editable.
+The importer accepts a bare JSON object, a JSON array of questions, a fenced code block, or JSON wrapped in ChatGPT's commentary. It also understands `correctIndex`, `correctAnswer` as "A"–"D", or the correct answer's exact text. Everything is validated before it replaces the editor's questions, and the result is fully editable. With **Add**, your existing quiz title is kept; the AI's title is only used when yours is empty. The usual 50-question quiz limit applies to the combined list.
 
 ### Optional: one-click generation with an OpenAI key
 

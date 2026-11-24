@@ -1,6 +1,12 @@
 const LETTER_INDEX = { A: 0, B: 1, C: 2, D: 3 };
 
-export function buildChatGptPrompt({ topic, count, difficulty }) {
+export function buildChatGptPrompt({ topic, count, difficulty, existingQuestions = [] }) {
+  const alreadyAsked = existingQuestions.filter(Boolean).slice(0, 20);
+  const avoid = alreadyAsked.length
+    ? `\n- Do not duplicate or rephrase these questions already in the quiz:\n${alreadyAsked
+        .map((question) => `  - ${question}`)
+        .join('\n')}`
+    : '';
   return `You are creating a multiple-choice quiz for a live classroom game.
 Topic: ${topic}
 Number of questions: ${count}
@@ -15,7 +21,7 @@ Rules:
 - correctIndex is the 0-based index of the correct option (0, 1, 2, or 3).
 - timeLimit is a whole number of seconds between 10 and 30.
 - Questions under 200 characters, options under 80 characters.
-- Factual, unambiguous, and age-appropriate.`;
+- Factual, unambiguous, and age-appropriate.${avoid}`;
 }
 
 export async function copyText(text) {

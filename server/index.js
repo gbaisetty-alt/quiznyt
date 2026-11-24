@@ -92,6 +92,12 @@ app.post('/api/ai/quiz', async (req, res) => {
   const difficulty = ['easy', 'medium', 'hard'].includes(req.body?.difficulty)
     ? req.body.difficulty
     : 'medium';
+  const existing = Array.isArray(req.body?.existing)
+    ? req.body.existing
+        .map((question) => cleanText(question, 200))
+        .filter(Boolean)
+        .slice(0, 20)
+    : [];
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
   let upstream;
@@ -110,7 +116,13 @@ app.post('/api/ai/quiz', async (req, res) => {
           { role: 'system', content: AI_PROMPT },
           {
             role: 'user',
-            content: `Topic: ${topic}\nQuestions: ${count}\nDifficulty: ${difficulty}`,
+            content: `Topic: ${topic}\nQuestions: ${count}\nDifficulty: ${difficulty}${
+              existing.length
+                ? `\nDo not duplicate these questions already in the quiz:\n${existing
+                    .map((question) => `- ${question}`)
+                    .join('\n')}`
+                : ''
+            }`,
           },
         ],
       }),

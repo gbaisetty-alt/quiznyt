@@ -32,6 +32,14 @@ import {
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 const TIME_OPTIONS = [10, 15, 20, 30];
+const MAX_QUESTIONS = 50;
+
+const questionHasContent = (question) =>
+  Boolean(
+    question.text.trim() ||
+      question.options.some((option) => option.trim()) ||
+      question.correctIndex !== null,
+  );
 
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -234,6 +242,7 @@ export default function CreateQuiz() {
   const [aiError, setAiError] = useState('');
   const [aiNotice, setAiNotice] = useState('');
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiMode, setAiMode] = useState('add');
   const [pasteText, setPasteText] = useState('');
 
   useEffect(() => {
@@ -249,11 +258,38 @@ export default function CreateQuiz() {
     };
   }, []);
 
+  const preparedQuestions = aiMode === 'add' ? questions.filter(questionHasContent) : [];
+
   const aiPromptPreview = buildChatGptPrompt({
     topic: aiTopic.trim() || 'your topic',
     count: aiCount,
     difficulty: aiDifficulty,
+    existingQuestions: preparedQuestions
+      .map((question) => question.text.trim())
+      .filter(Boolean)
+      .slice(0, 20),
   });
+
+  function applyDraft(draft) {
+    const base = aiMode === 'add' ? questions.filter(questionHasContent) : [];
+    const incoming = draft.questions.map((question) =>
+      blankQuestion({
+        text: question.text,
+        options: [...question.options],
+        correctIndex: question.correctIndex,
+        timeLimit: question.timeLimit,
+      }),
+    );
+    if (base.length + incoming.length > MAX_QUESTIONS) {
+      throw new Error(
+        `That would make ${base.length + incoming.length} questions, but quizzes hold at most ${MAX_QUESTIONS}. Ask for fewer.`,
+      );
+    }
+    setQuestions([...base, ...incoming]);
+    setTitle(aiMode === 'add' ? title.trim() || draft.title : draft.title);
+    setError('');
+    return base.length + incoming.length;
+  }
 
   async function copyPrompt() {
     setAiError('');
@@ -279,13 +315,13 @@ export default function CreateQuiz() {
     }
     try {
       const quiz = normalizeImportedQuiz(extractQuizJson(pasteText));
-      setTitle(quiz.title);
-      setQuestions(quiz.questions.map((question) => blankQuestion(question)));
+      const total = applyDraft(quiz);
       setPasteText('');
-      setError('');
-      setAiNotice(
-        `Imported ${quiz.questions.length} questions. Review them below, then press Create & host.`,
-      );
+      const summary =
+        aiMode === 'add'
+          ? `Added ${quiz.questions.length} questions — ${total} total.`
+          : `Imported ${quiz.questions.length} questions.`;
+      setAiNotice(`${summary} Review them below, then press Create & host.`);
     } catch (err) {
       setAiError(err.message);
     }
@@ -340,6 +376,12 @@ export default function CreateQuiz() {
       setAiError('Describe a topic first, like "The solar system for grade 7".');
       return;
     }
+    if (aiMode === 'add' && preparedQuestions.length + aiCount > MAX_QUESTIONS) {
+      setAiError(
+        `You already have ${preparedQuestions.length} questions; asking for ${aiCount} more would pass the ${MAX_QUESTIONS}-question limit.`,
+      );
+      return;
+    }
     setAiError('');
     setAiNotice('');
     setAiBusy(true);
@@ -351,6 +393,13 @@ export default function CreateQuiz() {
           topic: aiTopic.trim(),
           count: aiCount,
           difficulty: aiDifficulty,
+          existing:
+            aiMode === 'add'
+              ? preparedQuestions
+                  .map((question) => question.text.trim())
+                  .filter(Boolean)
+                  .slice(0, 20)
+              : [],
         }),
         signal: AbortSignal.timeout(60_000),
       });
@@ -359,21 +408,16 @@ export default function CreateQuiz() {
         setAiError(data?.error || 'Could not generate a quiz. Try again.');
         return;
       }
-      setTitle(data.quiz.title);
-      setQuestions(
-        data.quiz.questions.map((q) =>
-          blankQuestion({
-            text: q.text,
-            options: [...q.options],
-            correctIndex: q.correctIndex,
-            timeLimit: q.timeLimit,
-          }),
-        ),
-      );
-      setError('');
-      setAiNotice(
-        `Generated ${data.quiz.questions.length} questions. Review them below, then press Create & host.`,
-      );
+      try {
+        const total = applyDraft(data.quiz);
+        const summary =
+          aiMode === 'add'
+            ? `Added ${data.quiz.questions.length} questions — ${total} total.`
+            : `Generated ${data.quiz.questions.length} questions.`;
+        setAiNotice(`${summary} Review them below, then press Create & host.`);
+      } catch (err) {
+        setAiError(err.message);
+      }
     } catch {
       setAiError('Could not reach the AI service. Check your connection and try again.');
     } finally {
@@ -512,14 +556,43 @@ export default function CreateQuiz() {
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/50">
                   {aiEnabled ? 'API ready' : 'No API key'}
                 </span>
-                <span className="ml-auto hidden text-[11px] text-white/35 sm:block">
-                  Replaces the questions below
-                </span>
+                <div
+                  role="group"
+                  aria-label="How to apply the AI questions"
+                  className="ml-auto flex items-center gap-0.5 rounded-full bg-white/5 p-0.5 ring-1 ring-inset ring-white/10"
+                >
+                  {[
+                    ['add', 'Add'],
+                    ['replace', 'Replace'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setAiMode(value)}
+                      aria-pressed={aiMode === value}
+                      title={
+                        value === 'add'
+                          ? 'Keep your questions and add the AI ones after them'
+                          : 'Replace every question with the AI ones'
+                      }
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition ${
+                        aiMode === value
+                          ? 'bg-accent text-brand-night'
+                          : 'text-white/50 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-white/50">
                 Set a topic, copy the ready-made prompt into ChatGPT, then paste its reply
-                here. The questions load straight into the editor — no account or key needed
-                in this app.
+                here.{' '}
+                {aiMode === 'add'
+                  ? 'New questions are added after the ones you prepared, and the prompt avoids repeating them.'
+                  : 'The reply replaces every question below.'}{' '}
+                No account or key needed in this app.
               </p>
 
               <div className="mt-3 flex flex-col gap-2 lg:flex-row">
