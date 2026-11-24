@@ -28,6 +28,13 @@ app.use((req, res, next) => {
 });
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/sample-quiz', (req, res) => res.json(SAMPLE_QUIZ));
+app.get('/api/ai/status', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    enabled: Boolean(process.env.OPENAI_API_KEY),
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  });
+});
 
 const AI_RATE_LIMIT = 5;
 const AI_RATE_WINDOW_MS = 10 * 60_000;

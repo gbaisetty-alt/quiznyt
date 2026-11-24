@@ -5,7 +5,10 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  ClipboardPaste,
   Clock,
+  Copy,
+  ExternalLink,
   ListChecks,
   Play,
   Plus,
@@ -20,6 +23,12 @@ import Shape from '../components/Shape.jsx';
 import { SERVER_URL, request } from '../lib/socket.js';
 import { saveHostToken } from '../lib/session.js';
 import { ANSWERS } from '../lib/answers.js';
+import {
+  buildChatGptPrompt,
+  copyText,
+  extractQuizJson,
+  normalizeImportedQuiz,
+} from '../lib/quizImport.js';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 const TIME_OPTIONS = [10, 15, 20, 30];
@@ -223,6 +232,64 @@ export default function CreateQuiz() {
   const [aiDifficulty, setAiDifficulty] = useState('medium');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [aiNotice, setAiNotice] = useState('');
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${SERVER_URL}/api/ai/status`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setAiEnabled(Boolean(data?.enabled));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const aiPromptPreview = buildChatGptPrompt({
+    topic: aiTopic.trim() || 'your topic',
+    count: aiCount,
+    difficulty: aiDifficulty,
+  });
+
+  async function copyPrompt() {
+    setAiError('');
+    setAiNotice('');
+    if (!aiTopic.trim()) {
+      setAiError('Describe a topic first, like "The solar system for grade 7".');
+      return;
+    }
+    try {
+      await copyText(aiPromptPreview);
+      setAiNotice('Prompt copied. Paste it into ChatGPT, then paste the reply below.');
+    } catch {
+      setAiError('Could not copy automatically. Open the prompt preview and copy it manually.');
+    }
+  }
+
+  function importReply() {
+    setAiError('');
+    setAiNotice('');
+    if (!pasteText.trim()) {
+      setAiError('Paste ChatGPT\u2019s reply first.');
+      return;
+    }
+    try {
+      const quiz = normalizeImportedQuiz(extractQuizJson(pasteText));
+      setTitle(quiz.title);
+      setQuestions(quiz.questions.map((question) => blankQuestion(question)));
+      setPasteText('');
+      setError('');
+      setAiNotice(
+        `Imported ${quiz.questions.length} questions. Review them below, then press Create & host.`,
+      );
+    } catch (err) {
+      setAiError(err.message);
+    }
+  }
 
   const totalSeconds = questions.reduce((sum, q) => sum + Number(q.timeLimit || 0), 0);
 
@@ -274,6 +341,7 @@ export default function CreateQuiz() {
       return;
     }
     setAiError('');
+    setAiNotice('');
     setAiBusy(true);
     try {
       const res = await fetch(`${SERVER_URL}/api/ai/quiz`, {
@@ -303,6 +371,9 @@ export default function CreateQuiz() {
         ),
       );
       setError('');
+      setAiNotice(
+        `Generated ${data.quiz.questions.length} questions. Review them below, then press Create & host.`,
+      );
     } catch {
       setAiError('Could not reach the AI service. Check your connection and try again.');
     } finally {
@@ -437,34 +508,30 @@ export default function CreateQuiz() {
                 <span className="grid h-7 w-7 place-items-center rounded-xl bg-accent/20 text-accent">
                   <Wand2 className="h-4 w-4" />
                 </span>
-                <h2 className="text-sm font-bold">Generate with AI</h2>
+                <h2 className="text-sm font-bold">Generate with ChatGPT</h2>
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/50">
-                  ChatGPT
+                  {aiEnabled ? 'API ready' : 'No API key'}
                 </span>
                 <span className="ml-auto hidden text-[11px] text-white/35 sm:block">
                   Replaces the questions below
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-white/50">
-                Give ChatGPT a topic and it drafts the title, questions, answers, and timers
-                for you to edit.
+                Set a topic, copy the ready-made prompt into ChatGPT, then paste its reply
+                here. The questions load straight into the editor — no account or key needed
+                in this app.
               </p>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+
+              <div className="mt-3 flex flex-col gap-2 lg:flex-row">
                 <input
                   value={aiTopic}
                   onChange={(e) => setAiTopic(e.target.value.slice(0, 120))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (!aiBusy) generateWithAI();
-                    }
-                  }}
                   maxLength={120}
                   placeholder="e.g. Harry Potter trivia, space, world capitals"
                   aria-label="Topic for AI quiz generation"
                   className="min-w-0 flex-1 rounded-xl bg-white/10 px-3.5 py-2.5 text-sm ring-1 ring-inset ring-white/15 transition placeholder:text-white/30 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-accent/60"
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <label className="flex items-center gap-1 rounded-xl bg-white/10 px-2.5 py-2 text-[11px] font-bold text-white/60 ring-1 ring-inset ring-white/15">
                     <span className="sr-only">Number of questions</span>
                     <select
@@ -493,22 +560,71 @@ export default function CreateQuiz() {
                       ))}
                     </select>
                   </label>
-                  <Button
-                    size="sm"
-                    onClick={generateWithAI}
-                    loading={aiBusy}
-                    className="shrink-0"
-                  >
-                    {!aiBusy && <Sparkles className="h-4 w-4" />}
-                    {aiBusy ? 'Drafting…' : 'Generate'}
+                  <Button size="sm" onClick={copyPrompt} className="shrink-0">
+                    <Copy className="h-4 w-4" /> Copy prompt
                   </Button>
+                  <a
+                    href="https://chatgpt.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-white/70 ring-1 ring-inset ring-white/20 transition hover:bg-white/10 hover:text-white"
+                  >
+                    Open ChatGPT <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  {aiEnabled && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={generateWithAI}
+                      loading={aiBusy}
+                      className="shrink-0"
+                    >
+                      {!aiBusy && <Sparkles className="h-4 w-4" />}
+                      {aiBusy ? 'Drafting…' : 'Generate now'}
+                    </Button>
+                  )}
                 </div>
               </div>
+
+              {aiNotice && (
+                <p role="status" className="mt-2 text-xs font-medium text-[#9ef0b8]">
+                  {aiNotice}
+                </p>
+              )}
               {aiError && (
                 <p role="alert" className="mt-2 text-xs font-medium text-[#ffb3c1]">
                   {aiError}
                 </p>
               )}
+
+              <details className="mt-3 rounded-xl bg-black/20 px-3 py-2 text-xs text-white/45">
+                <summary className="cursor-pointer font-semibold text-white/60">
+                  Preview the prompt
+                </summary>
+                <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-white/55">
+                  {aiPromptPreview}
+                </pre>
+              </details>
+
+              <div className="mt-4 border-t border-white/10 pt-3">
+                <label
+                  htmlFor="ai-paste"
+                  className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/45"
+                >
+                  Paste ChatGPT&apos;s reply
+                </label>
+                <textarea
+                  id="ai-paste"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  rows={4}
+                  placeholder="Paste the whole reply. I'll find the JSON even if it's wrapped in text or a code block."
+                  className="mt-1.5 w-full resize-y rounded-xl bg-white/10 px-3.5 py-2.5 font-mono text-xs ring-1 ring-inset ring-white/15 transition placeholder:font-sans placeholder:text-white/30 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-accent/60"
+                />
+                <Button size="sm" onClick={importReply} className="mt-2 w-full sm:w-auto">
+                  <ClipboardPaste className="h-4 w-4" /> Import quiz
+                </Button>
+              </div>
             </section>
 
             <div className="space-y-3">

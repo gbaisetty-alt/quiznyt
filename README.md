@@ -6,7 +6,7 @@ A real-time, multiplayer live quiz game inspired by Kahoot. The host runs the ga
 
 - Landing page with **Host a Quiz** and **Join a Game** flows
 - Quiz builder: title, unlimited questions (up to 50), 4 answers each, correct answer, per-question timer (presets or any custom value from 10–60s)
-- Optional **AI quiz generation**: give ChatGPT a topic, question count, and difficulty, and it drafts the title, questions, options, answer key, and timers into the editor (bring your own OpenAI API key)
+- **ChatGPT quiz generation**: copy a ready-made prompt into [chatgpt.com](https://chatgpt.com), paste its JSON reply back, and the title, questions, options, answer key, and timers load into the editor. Works with no API key or account in the app; adding an OpenAI key enables one-click generation instead
 - Pick-your-avatar join screen with a Wizarding-world set (wizard, witch, owl, serpent, lion, unicorn, dragon…) and animal favorites — avatars appear in the lobby, scoreboards, and podium
 - Built-in sample quiz so you can play immediately
 - Host lobby with a random 6-digit PIN, live-updating player list, copyable PIN and join link
@@ -86,17 +86,25 @@ https://render.com/deploy?repo=https://github.com/gbaisetty-alt/quiznyt
 
 Alternative hosts that support Node + WebSockets: Railway, Fly.io, Heroku. Any of them just needs `npm run build` and `npm start`.
 
-## AI quiz generation (optional)
+## ChatGPT quiz generation
 
-The **Generate with AI** panel in the quiz builder calls OpenAI from the server, so your key never reaches the browser.
+The **Generate with ChatGPT** panel in the quiz builder works in two modes.
+
+### No key needed: copy, ask, paste
+
+1. Type a topic, pick the question count and difficulty, and press **Copy prompt**.
+2. Press **Open ChatGPT**, paste the prompt, and send it.
+3. Copy ChatGPT's reply and paste it into **Paste ChatGPT's reply** in QuizBlitz, then press **Import quiz**.
+
+The importer accepts a bare JSON object, a JSON array of questions, a fenced code block, or JSON wrapped in ChatGPT's commentary. It also understands `correctIndex`, `correctAnswer` as "A"–"D", or the correct answer's exact text. Everything is validated before it replaces the editor's questions, and the result is fully editable.
+
+### Optional: one-click generation with an OpenAI key
 
 1. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys). A ChatGPT Plus subscription does **not** include API access — the key needs its own billing.
-2. Add `OPENAI_API_KEY` as an environment variable on your host (Render: **Environment → Add Environment Variable**, then redeploy). `OPENAI_MODEL` defaults to `gpt-4o-mini`; set it to another model if your key cannot use that one.
-3. Locally, either export it in your shell (`OPENAI_API_KEY=sk-... npm start`) or put it in a `.env` file if you use one.
+2. Add `OPENAI_API_KEY` as an environment variable on your host (Render: **Environment → Add Environment Variable**, then redeploy). `OPENAI_MODEL` defaults to `gpt-4o-mini`.
+3. The panel detects the key and shows **Generate now**, which drafts the quiz in place. Locally: `OPENAI_API_KEY=sk-... npm start`.
 
-Without a key the panel still renders but returns “AI generation is not configured yet.” The endpoint (`POST /api/ai/quiz`) is rate-limited to 5 requests per IP per 10 minutes, caps questions at 15, and validates the AI's JSON against the same rules as manually built quizzes before returning it.
-
-Each draft costs a fraction of a cent with `gpt-4o-mini` (roughly $0.001–0.003 for 8 questions).
+The key never reaches the browser: generation goes through `POST /api/ai/quiz`, which is rate-limited to 5 requests per IP per 10 minutes, caps questions at 15, and validates the AI's JSON against the same rules as manually built quizzes. Each draft costs roughly $0.001–0.003 with `gpt-4o-mini`.
 
 ## How to play
 
@@ -152,8 +160,8 @@ The server validates quiz payloads (1–50 questions, exactly 4 non-empty answer
 | --- | --- | --- |
 | `PORT` | `3001` | Socket.IO/Express server port |
 | `VITE_SERVER_URL` | dev: `http://<current-host>:3001`, prod: same origin | Override the client's server URL if the API is hosted elsewhere |
-| `OPENAI_API_KEY` | — | Server-side key for **Generate with AI**; leave unset to disable the feature |
-| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model used for quiz drafts |
+| `OPENAI_API_KEY` | — | Optional; enables the one-click **Generate now** button. The copy/paste ChatGPT flow works without it |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model used for one-click quiz drafts |
 
 ## Notes
 
