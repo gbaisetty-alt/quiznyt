@@ -5,14 +5,17 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Dices,
   Gamepad2,
   KeyRound,
   LogOut,
   UserRound,
 } from 'lucide-react';
+import Avatar from '../components/Avatar.jsx';
 import Brand from '../components/Brand.jsx';
 import Button from '../components/Button.jsx';
 import Shape from '../components/Shape.jsx';
+import { AVATAR_GROUPS, avatarsByGroup, getAvatar, randomAvatarId } from '../lib/avatars.js';
 import { request, socket } from '../lib/socket.js';
 import {
   clearPlayerSession,
@@ -25,6 +28,7 @@ export default function Join() {
   const [params] = useSearchParams();
   const [pin, setPin] = useState((params.get('pin') || '').replace(/\D/g, '').slice(0, 6));
   const [name, setName] = useState('');
+  const [avatar, setAvatar] = useState(() => randomAvatarId());
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState(null);
@@ -51,7 +55,7 @@ export default function Join() {
       return;
     }
     setBusy(true);
-    const res = await request('player:join', { pin, name: name.trim() });
+    const res = await request('player:join', { pin, name: name.trim(), avatar });
     setBusy(false);
     if (!res.ok) {
       setError(res.error || 'Could not join that game.');
@@ -61,6 +65,7 @@ export default function Join() {
       pin: res.pin,
       playerId: res.playerId,
       name: res.name,
+      avatar: res.avatar || avatar,
       quizTitle: res.quizTitle,
     });
     navigate('/play');
@@ -171,6 +176,65 @@ export default function Join() {
               <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-medium text-white/30">
                 {name.length}/16
               </span>
+            </div>
+
+            <div role="group" aria-labelledby="avatar-label" className="mt-5">
+              <div className="flex items-center justify-between">
+                <span
+                  id="avatar-label"
+                  className="text-xs font-bold uppercase tracking-[0.18em] text-white/50"
+                >
+                  Avatar
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAvatar(randomAvatarId())}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold text-white/45 transition hover:bg-white/10 hover:text-white"
+                >
+                  <Dices className="h-3.5 w-3.5" /> Surprise me
+                </button>
+              </div>
+
+              <div className="mt-2 flex items-center gap-2.5 rounded-2xl bg-white/5 px-3 py-2 ring-1 ring-inset ring-white/10">
+                <Avatar id={avatar} size={38} className="ring-2 ring-accent/40" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">
+                    Playing as
+                  </p>
+                  <p className="truncate text-sm font-semibold">{getAvatar(avatar).label}</p>
+                </div>
+              </div>
+
+              <div className="mt-2 space-y-2">
+                {AVATAR_GROUPS.map((group) => (
+                  <div key={group.id}>
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">
+                      {group.label}
+                    </p>
+                    <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
+                      {avatarsByGroup(group.id).map((option) => {
+                        const selected = option.id === avatar;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setAvatar(option.id)}
+                            aria-pressed={selected}
+                            aria-label={option.label}
+                            className={`grid place-items-center rounded-xl p-0.5 transition ${
+                              selected
+                                ? 'bg-accent/20 ring-2 ring-accent'
+                                : 'hover:bg-white/10'
+                            }`}
+                          >
+                            <Avatar id={option.id} size={32} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {error && (

@@ -6,6 +6,7 @@ A real-time, multiplayer live quiz game inspired by Kahoot. The host runs the ga
 
 - Landing page with **Host a Quiz** and **Join a Game** flows
 - Quiz builder: title, unlimited questions (up to 50), 4 answers each, correct answer, per-question timer (presets or any custom value from 10–60s)
+- Pick-your-avatar join screen with a Wizarding-world set (wizard, witch, owl, serpent, lion, unicorn, dragon…) and animal favorites — avatars appear in the lobby, scoreboards, and podium
 - Built-in sample quiz so you can play immediately
 - Host lobby with a random 6-digit PIN, live-updating player list, copyable PIN and join link
 - Live gameplay: countdown synchronized to the server clock every 30s (immune to device clock drift), answer-count tracking, early reveal when everyone answers

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { WifiOff } from 'lucide-react';
+import Avatar from './Avatar.jsx';
 
 const MEDALS = [
   'bg-accent text-brand-night',
@@ -36,6 +37,7 @@ export default function LeaderboardList({ entries, meId, max = 5, className = ''
             >
               {i + 1}
             </span>
+            <Avatar id={player.avatar} size={30} className="ring-1 ring-white/15" />
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <span className="truncate font-semibold">
                 {player.name}

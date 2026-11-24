@@ -12,6 +12,7 @@ import {
   WifiOff,
   XCircle,
 } from 'lucide-react';
+import Avatar from '../components/Avatar.jsx';
 import Brand from '../components/Brand.jsx';
 import Button from '../components/Button.jsx';
 import Confetti from '../components/Confetti.jsx';
@@ -23,11 +24,12 @@ import { request, socket } from '../lib/socket.js';
 import { clearPlayerSession, loadPlayerSession } from '../lib/session.js';
 import { useCountdown } from '../lib/useCountdown.js';
 
-function PlayerHeader({ question, score, name }) {
+function PlayerHeader({ question, score, name, avatar }) {
   return (
     <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
       <Brand compact />
       <div className="flex min-w-0 items-center gap-2">
+        <Avatar id={avatar} size={28} className="ring-2 ring-white/15" />
         <span className="hidden max-w-[110px] truncate text-xs font-semibold text-white/50 sm:block">
           {name}
         </span>
@@ -73,7 +75,7 @@ export default function PlayerGame() {
     }
     sessionRef.current = stored;
     setSession(stored);
-    setMe({ id: stored.playerId, name: stored.name, score: 0 });
+    setMe({ id: stored.playerId, name: stored.name, avatar: stored.avatar, score: 0 });
 
     let cancelled = false;
     let rejoining = false;
@@ -166,7 +168,11 @@ export default function PlayerGame() {
     };
     const onPlayers = (list) => {
       const mine = list.find((p) => p.id === sessionRef.current?.playerId);
-      if (mine) setMe((prev) => (prev ? { ...prev, score: mine.score } : prev));
+      if (mine) {
+        setMe((prev) =>
+          prev ? { ...prev, score: mine.score, avatar: mine.avatar ?? prev.avatar } : prev,
+        );
+      }
     };
     const onClosed = (payload) => {
       setPhase('closed');
@@ -320,8 +326,13 @@ export default function PlayerGame() {
             >
               <div className="relative mx-auto grid h-24 w-24 place-items-center">
                 <span className="absolute inset-0 animate-pulse-soft rounded-full bg-answer-green/25 blur-xl" />
-                <span className="relative grid h-20 w-20 place-items-center rounded-full bg-answer-green/15 ring-2 ring-answer-green/40">
-                  <CheckCircle2 className="h-10 w-10 text-[#6fe04a]" />
+                <Avatar
+                  id={me?.avatar}
+                  size={86}
+                  className="relative ring-4 ring-answer-green/40"
+                />
+                <span className="absolute -bottom-1 -right-1 grid h-9 w-9 place-items-center rounded-full bg-answer-green text-brand-night ring-4 ring-brand-night">
+                  <CheckCircle2 className="h-5 w-5" />
                 </span>
               </div>
               <h1 className="mt-5 font-display text-4xl font-black tracking-tight sm:text-5xl">
@@ -364,7 +375,7 @@ export default function PlayerGame() {
 
       {showHeader && (
         <div className="flex flex-1 flex-col">
-          <PlayerHeader question={question} score={me?.score} name={me?.name} />
+          <PlayerHeader question={question} score={me?.score} name={me?.name} avatar={me?.avatar} />
 
           {phase === 'question' && question && (
             <main className="flex flex-1 flex-col px-3 pb-4 sm:px-5">
@@ -463,7 +474,7 @@ export default function PlayerGame() {
 
       {phase === 'reveal' && reveal && (
         <div className="flex flex-1 flex-col">
-          <PlayerHeader question={reveal} score={me?.score} name={me?.name} />
+          <PlayerHeader question={reveal} score={me?.score} name={me?.name} avatar={me?.avatar} />
           <main className="flex flex-1 flex-col items-center justify-center px-4 pb-8">
             <motion.section
               initial={{ opacity: 0, y: 24, scale: 0.97 }}
@@ -581,7 +592,7 @@ export default function PlayerGame() {
 
       {phase === 'leaderboard' && leaderboard && (
         <div className="flex flex-1 flex-col">
-          <PlayerHeader question={leaderboard} score={me?.score} name={me?.name} />
+          <PlayerHeader question={leaderboard} score={me?.score} name={me?.name} avatar={me?.avatar} />
           <main className="flex flex-1 flex-col px-4 pb-8">
             <div className="mt-2 text-center">
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent/15 text-accent">
@@ -603,8 +614,12 @@ export default function PlayerGame() {
               />
               {myRank > 5 && (
                 <div className="mt-3 flex items-center justify-between rounded-2xl bg-accent/10 px-4 py-3 text-sm ring-1 ring-inset ring-accent/25">
-                  <span className="font-semibold text-white/80">
-                    Your rank <span className="font-display font-black text-accent">#{myRank}</span>
+                  <span className="flex min-w-0 items-center gap-2 font-semibold text-white/80">
+                    <Avatar id={me?.avatar} size={28} />
+                    <span>
+                      Your rank{' '}
+                      <span className="font-display font-black text-accent">#{myRank}</span>
+                    </span>
                   </span>
                   <span className="font-display font-extrabold tabular-nums">
                     {me?.score?.toLocaleString()} pts
@@ -637,17 +652,30 @@ export default function PlayerGame() {
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 16 }}
-                className={`mt-2 grid h-24 w-24 place-items-center rounded-full ${
-                  myPlacement === 1
-                    ? 'bg-accent text-brand-night shadow-xl shadow-accent/25'
-                    : 'bg-white/10 text-accent'
-                }`}
+                className="relative mt-2"
               >
-                {myPlacement === 1 ? (
-                  <Crown className="h-11 w-11" />
-                ) : (
-                  <span className="font-display text-4xl font-black">#{myPlacement || '–'}</span>
-                )}
+                <Avatar
+                  id={me?.avatar}
+                  size={104}
+                  className={
+                    myPlacement === 1
+                      ? 'ring-4 ring-accent shadow-xl shadow-accent/25'
+                      : 'ring-4 ring-white/15'
+                  }
+                />
+                <span
+                  className={`absolute -bottom-1 left-1/2 grid h-9 min-w-9 -translate-x-1/2 place-items-center rounded-full px-2 font-display text-sm font-black ring-4 ring-brand-night ${
+                    myPlacement === 1
+                      ? 'bg-accent text-brand-night'
+                      : 'bg-white/15 text-white'
+                  }`}
+                >
+                  {myPlacement === 1 ? (
+                    <Crown className="h-4 w-4" />
+                  ) : (
+                    `#${myPlacement || '–'}`
+                  )}
+                </span>
               </motion.div>
 
               <h1 className="mt-4 font-display text-3xl font-black tracking-tight sm:text-4xl">

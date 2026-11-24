@@ -18,6 +18,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import Avatar from '../components/Avatar.jsx';
 import Brand from '../components/Brand.jsx';
 import Button from '../components/Button.jsx';
 import Confetti from '../components/Confetti.jsx';
@@ -28,21 +29,6 @@ import { ANSWERS } from '../lib/answers.js';
 import { request, socket } from '../lib/socket.js';
 import { clearHostToken, loadHostToken } from '../lib/session.js';
 import { useCountdown } from '../lib/useCountdown.js';
-
-const AVATAR_COLORS = [
-  'bg-answer-red',
-  'bg-answer-blue',
-  'bg-answer-yellow',
-  'bg-answer-green',
-  'bg-brand',
-  'bg-[#ff5fa2]',
-];
-
-function avatarColor(name) {
-  let hash = 0;
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
 
 async function copyText(text) {
   try {
@@ -120,6 +106,11 @@ function Podium({ entries }) {
           >
             <div className="mb-2 px-1 text-center">
               {isWinner && <Crown className="mx-auto mb-1 h-6 w-6 text-accent" />}
+              <Avatar
+                id={player.avatar}
+                size={isWinner ? 60 : 48}
+                className="mx-auto mb-1.5 ring-2 ring-white/20"
+              />
               <p className="truncate font-display text-sm font-extrabold sm:text-lg">{player.name}</p>
               <p className="font-display text-xs font-bold tabular-nums text-accent sm:text-sm">
                 {player.score.toLocaleString()} pts
@@ -513,11 +504,7 @@ export default function HostGame() {
                       transition={{ type: 'spring', stiffness: 300, damping: 24 }}
                       className="flex items-center gap-2 rounded-xl bg-white/[0.07] px-2.5 py-2 ring-1 ring-inset ring-white/10"
                     >
-                      <span
-                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black text-white/90 ${avatarColor(player.name)}`}
-                      >
-                        {player.name.charAt(0).toUpperCase()}
-                      </span>
+                      <Avatar id={player.avatar} size={28} />
                       <span className="truncate text-xs font-semibold">{player.name}</span>
                     </motion.li>
                   ))}
@@ -832,6 +819,7 @@ export default function HostGame() {
                       <span className="w-5 text-right text-xs font-bold tabular-nums text-white/30">
                         {i + 1}
                       </span>
+                      <Avatar id={player.avatar} size={22} />
                       <span className="min-w-0 flex-1 truncate text-white/65">{player.name}</span>
                       <span className="font-semibold tabular-nums text-white/50">
                         {player.score.toLocaleString()}
@@ -883,6 +871,7 @@ export default function HostGame() {
                         <span className="w-6 text-right text-xs font-bold tabular-nums text-white/30">
                           {i + 4}
                         </span>
+                        <Avatar id={player.avatar} size={20} />
                         <span className="min-w-0 flex-1 truncate text-white/60">{player.name}</span>
                         <span className="font-semibold tabular-nums text-white/45">
                           {player.score.toLocaleString()}

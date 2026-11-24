@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
+import { isAvatarId, randomAvatarId } from '../shared/avatars.js';
 import { SAMPLE_QUIZ } from './sampleQuiz.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -92,7 +93,13 @@ function activePlayers(room) {
 
 function publicPlayers(room) {
   return [...room.players.values()]
-    .map((p) => ({ id: p.id, name: p.name, score: p.score, connected: p.connected }))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      score: p.score,
+      connected: p.connected,
+    }))
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }
 
@@ -166,6 +173,7 @@ function endQuestion(room, reason) {
     results.push({
       id: player.id,
       name: player.name,
+      avatar: player.avatar,
       connected: player.connected,
       choice: ans ? ans.choice : null,
       correct: Boolean(ans?.correct),
@@ -369,6 +377,7 @@ io.on('connection', (socket) => {
     const player = {
       id: randomUUID(),
       name,
+      avatar: isAvatarId(payload?.avatar) ? payload.avatar : randomAvatarId(),
       score: 0,
       connected: true,
       socketId: socket.id,
@@ -382,6 +391,7 @@ io.on('connection', (socket) => {
       ok: true,
       playerId: player.id,
       name,
+      avatar: player.avatar,
       pin: room.pin,
       quizTitle: room.quiz.title,
     });
@@ -413,7 +423,12 @@ io.on('connection', (socket) => {
       questionCount: room.quiz.questions.length,
       status: room.status,
       index: room.index,
-      player: { id: player.id, name: player.name, score: player.score },
+      player: {
+        id: player.id,
+        name: player.name,
+        avatar: player.avatar,
+        score: player.score,
+      },
       lastEvent: room.lastEvent,
       answeredChoice: answered ? answered.choice : null,
       answerCount: answerCount(room),
